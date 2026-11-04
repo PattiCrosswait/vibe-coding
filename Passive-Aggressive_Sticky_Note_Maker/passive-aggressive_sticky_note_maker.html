@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sticky Note Generator</title>
+  <style>
+    :root {
+      --ink: #242323;
+      --muted: #716b63;
+      --paper: #fffdf8;
+      --line: #ded8ce;
+      --yellow: #ffe66d;
+      --yellow-dark: #f0c943;
+      --coral: #e85d4a;
+      --shadow: 0 22px 45px rgba(72, 53, 26, .13);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 15%, rgba(255,255,255,.9), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #eee4d5 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    main { width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 64px; }
+
+    header { max-width: 700px; margin-bottom: 30px; }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--coral);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(2.2rem, 5vw, 4rem); line-height: .98; letter-spacing: -.055em; }
+    .lede { max-width: 550px; margin: 18px 0 0; color: var(--muted); font-size: 1.05rem; line-height: 1.55; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(250px, .75fr) minmax(320px, 1.25fr);
+      gap: 34px;
+      align-items: start;
+    }
+
+    .controls, .preview {
+      background: rgba(255, 253, 248, .78);
+      border: 1px solid rgba(222, 216, 206, .9);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+    .controls { padding: 25px; }
+    .controls h2 { margin: 0 0 23px; font-size: 1.15rem; }
+    .field + .field { margin-top: 27px; }
+    .field-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 11px;
+      font-size: .91rem;
+      font-weight: 750;
+    }
+    .field-label span:last-child { color: var(--coral); }
+
+    .situations { display: grid; gap: 9px; }
+    .situation {
+      position: relative;
+      display: flex;
+      gap: 11px;
+      align-items: center;
+      padding: 12px 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, transform .15s;
+    }
+    .situation:hover { transform: translateY(-1px); border-color: var(--yellow-dark); }
+    .situation[aria-pressed="true"] { border-color: #b89a20; background: #fff4b7; box-shadow: inset 0 0 0 1px #b89a20; }
+    .icon { font-size: 1.35rem; line-height: 1; }
+    .situation small { display: block; margin-top: 2px; color: var(--muted); font-size: .75rem; }
+
+    input[type="range"] { width: 100%; accent-color: var(--coral); cursor: pointer; }
+    .range-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: .72rem; }
+    .helper { margin: 11px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.45; }
+
+    .preview { padding: 23px; }
+    .preview-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 17px; }
+    .preview-header h2 { margin: 0; font-size: 1.15rem; }
+    .status { color: var(--muted); font-size: .77rem; }
+    .sticky {
+      position: relative;
+      min-height: 350px;
+      padding: 43px 38px 34px;
+      overflow: hidden;
+      background: var(--yellow);
+      box-shadow: 8px 10px 0 rgba(198, 155, 37, .22), 0 18px 30px rgba(91, 67, 18, .16);
+      transform: rotate(-1.1deg);
+    }
+    .sticky::before {
+      content: "";
+      position: absolute;
+      top: -19px;
+      left: 50%;
+      width: 100px;
+      height: 38px;
+      background: rgba(255, 249, 218, .62);
+      box-shadow: 0 1px 5px rgba(90, 67, 21, .08);
+      transform: translateX(-50%) rotate(2deg);
+    }
+    .sticky::after {
+      content: "";
+      position: absolute;
+      right: -26px;
+      bottom: -31px;
+      width: 105px;
+      height: 105px;
+      border-radius: 50%;
+      background: rgba(255, 242, 152, .55);
+    }
+    .sticky-kicker { margin: 0 0 24px; color: rgba(36, 35, 35, .58); font-size: .75rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    #note { position: relative; z-index: 1; margin: 0; font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive; font-size: clamp(1.45rem, 3vw, 2.15rem); line-height: 1.35; }
+    .signature { position: relative; z-index: 1; margin: 28px 0 0; color: rgba(36, 35, 35, .64); font-family: "Segoe Print", "Bradley Hand", cursive; font-size: .95rem; }
+    .actions { display: flex; gap: 10px; margin-top: 25px; }
+    button.action {
+      flex: 1;
+      border: 0;
+      border-radius: 11px;
+      padding: 12px 16px;
+      background: var(--coral);
+      color: white;
+      font: inherit;
+      font-size: .88rem;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    button.action:hover, button.action:focus-visible { background: #c94d3c; }
+    button.action.secondary { border: 1px solid var(--line); background: transparent; color: var(--ink); }
+    button.action.secondary:hover, button.action.secondary:focus-visible { background: var(--paper); }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(232, 93, 74, .35); outline-offset: 2px; }
+    #copied { min-height: 1.2em; margin: 11px 0 0; color: var(--coral); font-size: .8rem; text-align: center; }
+
+    @media (max-width: 760px) {
+      main { padding-top: 30px; }
+      .workspace { grid-template-columns: 1fr; gap: 24px; }
+      .sticky { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">The note you wish you could send</p>
+      <h1>Say it nicely.<br>Or… nicely enough.</h1>
+      <p class="lede">Choose the situation, set your politeness level, and let the sticky note do the talking.</p>
+    </header>
+
+    <section class="workspace" aria-label="Sticky note generator">
+      <div class="controls">
+        <h2>Compose your note</h2>
+        <div class="field">
+          <div class="field-label"><span>What is happening?</span><span id="situation-name">Dishes</span></div>
+          <div class="situations" role="group" aria-label="Situation">
+            <button class="situation" type="button" data-situation="dishes" aria-pressed="true">
+              <span class="icon" aria-hidden="true">🍽️</span><span><b>Dishes</b><small>The sink is not a storage unit</small></span>
+            </button>
+            <button class="situation" type="button" data-situation="parking" aria-pressed="false">
+              <span class="icon" aria-hidden="true">🚗</span><span><b>Parking</b><small>There are lines for a reason</small></span>
+            </button>
+            <button class="situation" type="button" data-situation="thermostat" aria-pressed="false">
+              <span class="icon" aria-hidden="true">🌡️</span><span><b>Thermostat</b><small>We can all feel the temperature</small></span>
+            </button>
+            <button class="situation" type="button" data-situation="laundry" aria-pressed="false">
+              <span class="icon" aria-hidden="true">🧺</span><span><b>Laundry</b><small>The floor is not a hamper</small></span>
+            </button>
+            <button class="situation" type="button" data-situation="personal-hygiene" aria-pressed="false">
+              <span class="icon" aria-hidden="true">🧼</span><span><b>Personal hygiene</b><small>Freshness is a team effort</small></span>
+            </button>
+            <button class="situation" type="button" data-situation="dusting" aria-pressed="false">
+              <span class="icon" aria-hidden="true">🪶</span><span><b>Dusting</b><small>Those surfaces remember</small></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label"><span>Politeness level</span><span id="mood-name">Diplomatic</span></div>
+          <input id="rage" type="range" min="0" max="100" value="28" aria-label="Politeness to rage">
+          <div class="range-labels"><span>Kind reminder</span><span>Choose chaos</span></div>
+          <p class="helper">Slide right for fewer pleasantries and more very specific punctuation.</p>
+        </div>
+      </div>
+
+      <div class="preview">
+        <div class="preview-header"><h2>Your sticky note</h2><span class="status" id="status">Live draft</span></div>
+        <div class="sticky" aria-live="polite">
+          <p class="sticky-kicker">A gentle reminder</p>
+          <p id="note"></p>
+          <p class="signature">— Your increasingly concerned housemate</p>
+        </div>
+        <div class="actions">
+          <button class="action" id="copy" type="button">Copy note</button>
+          <button class="action secondary" id="randomize" type="button">Surprise me</button>
+        </div>
+        <p id="copied" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const situations = {
+      dishes: {
+        label: "Dishes",
+        notes: [
+          "Hey! When you have a minute, could you please wash the dishes? Future us would be very grateful.",
+          "The dishes are hoping to return to their natural habitat: the cupboard. Please help them get there.",
+          "I love our kitchen, so let’s keep it from becoming an archaeological dig. Dishes, please.",
+          "This is a friendly reminder that dishes do not wash themselves. I checked. Thoroughly.",
+          "The sink is full. The dishwasher is empty. This feels like a solvable mystery."
+        ]
+      },
+      parking: {
+        label: "Parking",
+        notes: [
+          "Could we please leave enough room for the other cars to park? Thank you for your consideration.",
+          "A gentle reminder: the painted lines are more of a guide than a suggestion, but let’s treat them like rules.",
+          "Please park inside the lines. I believe in you, and I believe in the concept of personal space.",
+          "The parking spot is not a creative canvas. Kindly park like the lines are actually there.",
+          "Just a heads-up: one car should generally occupy one spot. Revolutionary, I know."
+        ]
+      },
+      thermostat: {
+        label: "Thermostat",
+        notes: [
+          "Could we agree on a temperature that works for everyone before adjusting the thermostat? Thanks!",
+          "The thermostat is not a mood ring. Please check with the household before changing it.",
+          "If you are cold, grab a sweater. If you are warm, open a window. The thermostat is taking a break.",
+          "Please stop changing the thermostat every twelve minutes. It is getting trust issues.",
+          "The thermostat has been adjusted so many times today it is considering moving out."
+        ]
+      },
+      laundry: {
+        label: "Laundry",
+        notes: [
+          "When you have a minute, could you please move your laundry along so the machines are free for everyone?",
+          "The washer and dryer are ready for their next adventure. Please collect your clothes.",
+          "The laundry basket is right there, patiently waiting to be included in this process.",
+          "The floor has enough clothes to qualify as a walk-in closet. Please use the hamper.",
+          "Your laundry has entered a new phase of existence: permanent floor decor. Let’s change that."
+        ]
+      },
+      "personal-hygiene": {
+        label: "Personal hygiene",
+        notes: [
+          "A gentle reminder to freshen up when you get a chance. Shared spaces are a team sport.",
+          "Could we all please remember the basics of personal hygiene? It makes the whole household happier.",
+          "Soap, deodorant, and a shower are small investments with remarkably good returns.",
+          "The air quality suggests that personal hygiene may have become an optional feature. It should not be.",
+          "Please take a shower. This note is trying to be kind, and it is running out of synonyms."
+        ]
+      },
+      dusting: {
+        label: "Dusting",
+        notes: [
+          "Could we add a little dusting to the cleaning routine? The surfaces would really appreciate it.",
+          "The dust is quietly gathering a committee. A quick wipe would stop the meeting.",
+          "Please dust the surfaces when you get a chance. The furniture would like to be seen again.",
+          "That is not a new finish on the shelf; it is dust. Please show it the cleaning cloth.",
+          "The dust has achieved a level of comfort here that suggests it thinks it pays rent."
+        ]
+      }
+    };
+
+    const rage = document.querySelector("#rage");
+    const note = document.querySelector("#note");
+    const moodName = document.querySelector("#mood-name");
+    const situationName = document.querySelector("#situation-name");
+    let currentSituation = "dishes";
+    let noteIndex = 0;
+
+    function moodFor(value) {
+      if (value < 20) return "Warm & friendly";
+      if (value < 45) return "Diplomatic";
+      if (value < 70) return "Firm";
+      if (value < 90) return "Pointed";
+      return "Unfiltered";
+    }
+
+    function updateNote() {
+      const value = Number(rage.value);
+      const options = situations[currentSituation].notes;
+      const base = options[noteIndex % options.length];
+      const endings = [
+        " Thanks!",
+        " I appreciate it.",
+        " Please and thank you.",
+        " We can do better than this.",
+        " This is your official unofficial warning."
+      ];
+      const endingIndex = Math.min(Math.floor(value / 20), endings.length - 1);
+      note.textContent = base + endings[endingIndex];
+      moodName.textContent = moodFor(value);
+      situationName.textContent = situations[currentSituation].label;
+    }
+
+    document.querySelectorAll(".situation").forEach(button => {
+      button.addEventListener("click", () => {
+        currentSituation = button.dataset.situation;
+        noteIndex = 0;
+        document.querySelectorAll(".situation").forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+        updateNote();
+      });
+    });
+
+    rage.addEventListener("input", updateNote);
+
+    document.querySelector("#randomize").addEventListener("click", () => {
+      const keys = Object.keys(situations);
+      currentSituation = keys[Math.floor(Math.random() * keys.length)];
+      noteIndex = Math.floor(Math.random() * situations[currentSituation].notes.length);
+      rage.value = Math.floor(Math.random() * 101);
+      document.querySelectorAll(".situation").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.situation === currentSituation)));
+      updateNote();
+    });
+
+    document.querySelector("#copy").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(note.textContent);
+        document.querySelector("#copied").textContent = "Copied to your clipboard.";
+      } catch (error) {
+        document.querySelector("#copied").textContent = "Select the note text to copy it manually.";
+      }
+      window.setTimeout(() => { document.querySelector("#copied").textContent = ""; }, 2500);
+    });
+
+    updateNote();
+  </script>
+</body>
+</html>
